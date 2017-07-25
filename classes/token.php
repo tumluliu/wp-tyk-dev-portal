@@ -262,22 +262,22 @@ class Tyk_Token
         }
 
         try {
-            $response = $this->api->delete(sprintf('/portal/developers/key/%s/%s/%s',
-                $this->policy,
-                $this->hash,
-                $this->user->get_tyk_id()
-            ));
-            if (is_object($response) && isset($response->Status) && $response->Status == 'OK') {
-                if (Tyk_Dev_Portal::is_hybrid()) {
-                    $response = $this->gateway->delete(sprintf('/keys/%s?hashed=1', $this->hash));
-                    if (is_object($response) && isset($response->status) && $response->status == 'ok') {
-                        return true;
-                    }
-                    else {
-                        throw new Exception('Received invalid response from Gateway');
-                    }
+            $apiManager = new Tyk_API_Manager;
+            $apis = $apiManager->available_apis();
+            if (is_array($apis)) {
+                $firstApi = array_shift($apis);
+                $response = $this->api->delete(sprintf('/apis/%s/keys/%s',
+                    $firstApi->api_definition->api_id,
+                    $this->key
+                ));
+            }
+            if (is_object($response) && isset($response->Message) && isset($response->Status)) {
+                if ($response->Status == 'OK') {
+                    return true;
                 }
-                return true;
+                else {
+                    throw new Exception($response->Message);
+                }
             }
             else {
                 throw new Exception('Received invalid response from API');
@@ -303,30 +303,6 @@ class Tyk_Token
         }
 
         try {
-            /**
-             * Hybrid Tyk
-             * Get usage quota from gateways, as this info isn't synced back to cloud
-             */
-            // by Lu Liu
-            // not necessary any more.
-            // can be acquired in the same way as that of cloud and on-premise
-            //if (Tyk_Dev_Portal::is_hybrid()) {
-            //$response = $this->gateway->get(sprintf('/keys/%s', $this->key));
-            //if (is_object($response) && isset($response->quota_remaining)) {
-            //return (object) array(
-            //'quota_remaining' => $response->quota_remaining,
-            //'quota_max' => $response->quota_max
-            //);
-            //}
-            //else {
-            //throw new Exception('Received invalid response from Gateway');
-            //}
-            //}
-            /**
-             * Cloud and on-premise Tyk
-             * Get usage quota from API
-             */
-            //else {
             // first: we need an api id on which to request the tokens
             // sounds weird I know, here's the explanation: https://community.tyk.io/t/several-questions/1041/3
             $apiManager = new Tyk_API_Manager;
@@ -344,7 +320,6 @@ class Tyk_Token
             else {
                 throw new Exception('Received invalid response from API');
             }
-            //}
         }
         catch (Exception $e) {
             throw new UnexpectedValueException($e->getMessage());
